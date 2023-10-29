@@ -21,9 +21,13 @@ import typing
 import string
 import time
 
-# import cv2
 import numpy as np
+
 import subprocess
+import sys
+import os
+import json
+import base64
 
 
 def hx(v: int) -> str:
@@ -118,16 +122,10 @@ setting_flex_grid_font = mod.setting(
 ctx = Context()
 
 
-def view_image(image_array, name):
-    # open the image (macOS only)
-    Image.from_array(image_array).write_file(f"/tmp/{name}.jpg")
-    subprocess.run(("open", f"/tmp/{name}.jpg"))
-
-
 class FlexMouseGrid:
     def __init__(self):
         self.screen = None
-        self.rect = None
+        self.rect: Rect = None
         self.history = []
         self.mcanvas = None
         self.columns = 0
@@ -152,7 +150,7 @@ class FlexMouseGrid:
         self.boxes_threshold_view_showing = False
         self.info_showing = False
 
-    def setup(self, *, rect: Rect = None, screen_index: int = None):
+    def setup(self, *, rect: Rect = None, screen_index: int = -1):
         # get informaition on number and size of screens
         screens = ui.screens()
 
@@ -164,7 +162,7 @@ class FlexMouseGrid:
             except Exception:
                 rect = None
 
-        if rect is None and screen_index is not None:
+        if rect is None and screen_index >= 0:
             screen = screens[screen_index % len(screens)]
             rect = screen.rect
 
@@ -309,7 +307,6 @@ class FlexMouseGrid:
         )
 
         def draw_superblock():
-
             superblock_size = len(self.letters) * self.field_size
 
             colors = ["000055", "665566", "554444", "888855", "aa55aa", "55cccc"] * 100
@@ -344,7 +341,6 @@ class FlexMouseGrid:
                     canvas.draw_rect(blockrect)
 
                     if skipped_superblock != num:
-
                         # attempt to change backround color on the superblock chosen
 
                         # canvas.paint.color = colors[(row + col) % len(colors)] + hx(self.bg_transparency)
@@ -399,7 +395,6 @@ class FlexMouseGrid:
                     num += 1
 
         def draw_text():
-
             canvas.paint.text_align = canvas.paint.TextAlign.CENTER
             canvas.paint.textsize = 17
             canvas.paint.typeface = setting_flex_grid_font.get()
@@ -408,7 +403,6 @@ class FlexMouseGrid:
 
             for row in range(0, self.rows + 1):
                 for col in range(0, self.columns + 1):
-
                     if self.pattern == "checkers":
                         if (row % 2 == 0 and col % 2 == 0) or (
                             row % 2 == 1 and col % 2 == 1
@@ -466,7 +460,6 @@ class FlexMouseGrid:
             # remove distracting letters from frame mode frames.
             if self.pattern == "frame":
                 if self.letters[row % len(self.letters)] == "a":
-
                     # gets a letter from the alphabet of the form 'ab' or 'DA'
                     text_string = f"{self.letters[col % len(self.letters)]}"
                     # this the measure text is the box around the text.
@@ -499,7 +492,6 @@ class FlexMouseGrid:
 
             elif self.pattern == "phonetic":
                 if self.letters[row % len(self.letters)] == "a":
-
                     # gets a letter from the alphabet of the form 'ab' or 'DA'
                     text_string = f"{self.letters[col % len(self.letters)]}"
                     # this the measure text is the box around the text.
@@ -636,7 +628,7 @@ class FlexMouseGrid:
                         )
 
         def draw_rulers():
-            for (x_pos, align) in [
+            for x_pos, align in [
                 (-3, canvas.paint.TextAlign.RIGHT),
                 (self.rect.width + 3, canvas.paint.TextAlign.LEFT),
             ]:
@@ -982,68 +974,23 @@ class FlexMouseGrid:
         self.boxes_showing = b
         self.grid_showing = g
 
-    def setup_boxes(self):
+    def find_boxes(self, scan=False):
         self.reset_window_context()
 
         # temporarily hide everything that we have drawn so that it doesn't interfere with box detection
         self.temporarily_hide_everything()
 
-        results = {}
+        # use a threshold of -1 to indicate that we should scan for a good threshold
+        threshold = -1 if scan else self.box_config["threshold"]
 
-        def find_maximum(function, lower, upper, iterations_left):
-            middle = int((upper + lower) / 2)
-            result = function(middle)
-            results[middle] = result
-
-            # short circuit when out of iterations or results are all the same
-            if iterations_left == 0 or (results[lower] == result == results[upper]):
-                return middle
-
-            # handle triangle case, e.g. 4, 10, 6
-            if results[lower] < result > results[upper]:
-                if results[lower] > results[upper]:
-                    return find_maximum(function, lower, middle, iterations_left - 1)
-                else:
-                    return find_maximum(function, middle, upper, iterations_left - 1)
-
-            if result > results[lower]:
-                return find_maximum(function, middle, upper, iterations_left - 1)
-            else:
-                return find_maximum(function, lower, middle, iterations_left - 1)
-
-        # use box lower and upper bounds from settings
+        # retrieve the app-specific box detection configuration
         box_size_lower = self.box_config["box_size_lower"]
         box_size_upper = self.box_config["box_size_upper"]
 
-        def find_boxes_with_threshold(threshold):
-            # self.find_boxes_with_config(threshold, box_size_lower, box_size_upper)
-            return len(self.boxes)
-
-        # first do a broad scan, checking number of boxes found across a range of thresholds
-        results = {
-            threshold: find_boxes_with_threshold(threshold)
-            for threshold in range(5, 256, 25)
-        }
-
-        lower = 5
-        upper = 5
-        upper_result = results[5]
-        # iterate up threshold values. when a new max is found, store threshold as upper. old upper
-        # becomes lower.
-        for threshold, result in results.items():
-            if result >= upper_result:
-                upper_result = result
-                lower = upper
-                upper = threshold
-
-        # print("lower", lower)
-        # print("upper", upper)
-        final_result = find_maximum(find_boxes_with_threshold, lower, upper, 4)
-        print("final_threshold", final_result)
-        # print("final_boxes", results[final_result])
+        # perform box detection
+        self.find_boxes_with_config(threshold, box_size_lower, box_size_upper)
 
         # save final threshold
-        self.box_config["threshold"] = final_result
         self.save_box_config()
 
         # restore everything previously hidden and show boxes
@@ -1051,74 +998,39 @@ class FlexMouseGrid:
         self.boxes_showing = True
         self.redraw()
 
-    def find_boxes(self):
-        self.reset_window_context()
+    def find_boxes_with_config(self, threshold, box_size_lower, box_size_upper):
+        current_directory = os.path.dirname(__file__)
+        find_boxes_path = os.path.join(current_directory, ".find_boxes.py")
 
-        # temporarily hide everything that we have drawn so that it doesn't interfere with box detection
-        self.temporarily_hide_everything()
+        image_array = np.array(screen.capture_rect(self.rect), dtype=np.uint8)
+        image_no_alpha = image_array[:, :, :3]
+        img = base64.b64encode(image_no_alpha.tobytes()).decode("utf-8")
 
-        # retrieve the app-specific box detection configuration
-        threshold = self.box_config["threshold"]
-        box_size_lower = self.box_config["box_size_lower"]
-        box_size_upper = self.box_config["box_size_upper"]
+        # run openCV script to find boxes in a separate process
+        process = subprocess.run(
+            (sys.executable, find_boxes_path),
+            capture_output=True,
+            input=json.dumps(
+                {
+                    "threshold": threshold,
+                    "box_size_lower": box_size_lower,
+                    "box_size_upper": box_size_upper,
+                    "img": img,
+                    "width": image_array.shape[1],
+                    "height": image_array.shape[0],
+                },
+                separators=(",", ":"),
+            ),
+            text=True,
+        )
 
-        # perform box detection
-        # self.find_boxes_with_config(threshold, box_size_lower, box_size_upper)
+        # print(process.stdout)
+        # print(process.stderr)
 
-        # restore everything previously hidden and show boxes
-        self.restore_everything()
-        self.boxes_showing = True
-        self.redraw()
-
-    # def find_boxes_with_config(self, threshold, box_size_lower, box_size_upper):
-    #     # find boxes by first applying a threshold filter to the grayscale window
-    #     img = np.array(screen.capture_rect(self.rect))
-    #     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    #     _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-    #     # view_image(thresh, "thresh")
-
-    #     # use a close morphology transform to filter out thin lines
-    #     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
-    #     self.morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-    #     # view_image(morph, "morph")
-
-    #     # now search all of the contours for small square-ish things
-    #     contours, _ = cv2.findContours(
-    #         self.morph, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-    #     )
-
-    #     all_boxes = []
-    #     for c in contours:
-    #         (x, y, w, h) = cv2.boundingRect(c)
-    #         if (
-    #             (w >= box_size_lower and w < box_size_upper)
-    #             and (h > box_size_lower and h < box_size_upper)
-    #             and abs(w - h) < 0.4 * w
-    #         ):
-    #             all_boxes.append(ui.Rect(x, y, w, h))
-
-    #     # print("found boxes", len(all_boxes))
-
-    #     # filter boxes that are too similar to each other
-    #     self.boxes = []
-    #     for i, box1 in enumerate(all_boxes):
-    #         omit = False
-    #         for j in range(i + 1, len(all_boxes)):
-    #             box2 = all_boxes[j]
-    #             box1center = box1.center
-    #             box2center = box2.center
-    #             if (
-    #                 abs(box1center.x - box2center.x) < box_size_lower
-    #                 and abs(box1center.y - box2center.y) < box_size_lower
-    #             ):
-    #                 # omit this box since its center is nearby another box's center
-    #                 omit = True
-    #                 break
-
-    #         if not omit:
-    #             self.boxes.append(box1)
-
-    #     # print("after omissions", len(self.boxes))
+        process_output = json.loads(process.stdout)
+        boxes = process_output["boxes"]
+        self.boxes = [Rect(box["x"], box["y"], box["w"], box["h"]) for box in boxes]
+        self.box_config["threshold"] = process_output["threshold"]
 
     def go_to_box(self, box_number):
         if box_number >= len(self.boxes):
@@ -1328,7 +1240,7 @@ class GridActions:
 
     def flex_grid_setup_boxes():
         """Do a binary search to find best box configuration"""
-        mg.setup_boxes()
+        mg.find_boxes(scan=True)
 
     def flex_grid_go_to_box(box_number: int, mouse_button: int):
         """Go to a box"""
