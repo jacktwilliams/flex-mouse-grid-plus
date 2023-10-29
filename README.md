@@ -224,4 +224,4 @@ The transparency uses 2-digit hexadecimal numbers for an alpha channel.
 - Deduplicate grid config state
 - Allow clearing saved grid config, box config
 - Include more things in grid config
-- Automatic threshold detection?
+- Pipe image data to new python process as binary
