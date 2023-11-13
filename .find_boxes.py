@@ -104,7 +104,7 @@ def find_boxes(threshold, box_size_lower, box_size_upper, img):
         if (
             (w >= box_size_lower and w < box_size_upper)
             and (h > box_size_lower and h < box_size_upper)
-            and abs(w - h) < 0.4 * w
+            and abs(w - h) < 0.8 * w
         ):
             all_boxes.append(Rect(x, y, w, h))
 
