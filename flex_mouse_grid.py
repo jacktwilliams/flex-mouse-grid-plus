@@ -192,6 +192,7 @@ class FlexMouseGrid:
         # points
         self.points_map_store = FlexStore("points", lambda: {})
         self.points_map = self.points_map_store.load()
+        self.points_last_visited_index_map = {}
 
         # boxes
         self.box_config_store = FlexStore(
@@ -937,15 +938,29 @@ class FlexMouseGrid:
         self.save_points()
         self.redraw()
 
-    def go_to_point(self, point_name, index):
+    def go_to_point(self, point_name, index, relative=False):
         self.reset_window_context()
 
         if point_name not in self.points_map:
             print("point", point_name, "not found")
             return
 
+        # the index we get is 1-based, but we want 0-based
+        element_index = index - 1
+
+        if relative:
+            if point_name in self.points_last_visited_index_map:
+                point_list_length = len(self.points_map[point_name])
+                element_index = (
+                    self.points_last_visited_index_map[point_name] + index
+                ) % point_list_length
+            else:
+                element_index = 0
+
+        point = self.points_map[point_name][element_index]
+        self.points_last_visited_index_map[point_name] = element_index
+
         # points are always relative to canvas
-        point = self.points_map[point_name][index - 1]
         ctrl.mouse_move(self.rect.x + point.x, self.rect.y + point.y)
         self.redraw()
 
@@ -1224,6 +1239,10 @@ class GridActions:
         """Go to a point, optionally click it"""
         mg.go_to_point(point_name, index)
         mg.mouse_click(mouse_button)
+
+    def flex_grid_go_to_point_relative(point_name: str, delta: int):
+        """Go to a point relative to the last visited point in a list"""
+        mg.go_to_point(point_name, delta, relative=True)
 
     # BOXES
     def flex_grid_boxes_toggle(onoff: int):

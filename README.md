@@ -219,7 +219,6 @@ The transparency uses 2-digit hexadecimal numbers for an alpha channel.
 
 ## To do
 
-- Implement "next point", "last point" for point lists
 - Configurable characters: alphabet, alphabet subset, numeric
 - Deduplicate grid config state
 - Allow clearing saved grid config, box config
