@@ -42,6 +42,10 @@ tag: user.flex_mouse_grid_showing
     # a row or a column.
     user.flex_grid_input_partial(letter)
 
+# Allows typing letters while the flex grid is showing. Example: "press air bat cap"
+^press <user.keys>$:
+    key(keys)
+
 # Configuration
 # Change the overlay pattern to a checkerboard pattern.
 grid checker: user.flex_grid_checkers()
