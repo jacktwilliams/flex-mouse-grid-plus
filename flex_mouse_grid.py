@@ -1015,7 +1015,7 @@ class FlexMouseGrid:
 
     def find_boxes_with_config(self, threshold, box_size_lower, box_size_upper):
         current_directory = os.path.dirname(__file__)
-        find_boxes_path = os.path.join(current_directory, ".find_boxes.py")
+        find_boxes_path = os.path.join(current_directory, ".find_boxes.pyw")
 
         image_array = np.array(screen.capture_rect(self.rect), dtype=np.uint8)
         image_no_alpha = image_array[:, :, :3]
