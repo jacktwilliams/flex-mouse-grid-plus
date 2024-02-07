@@ -1015,17 +1015,17 @@ class FlexMouseGrid:
 
     def find_boxes_with_config(self, threshold, box_size_lower, box_size_upper):
         current_directory = os.path.dirname(__file__)
-        find_boxes_path = os.path.join(current_directory, ".find_boxes.pyw")
+        find_boxes_path = os.path.join(current_directory, ".find_boxes.py")
 
         image_array = np.array(screen.capture_rect(self.rect), dtype=np.uint8)
         image_no_alpha = image_array[:, :, :3]
         img = base64.b64encode(image_no_alpha.tobytes()).decode("utf-8")
 
         # run openCV script to find boxes in a separate process
-        process = subprocess.run(
-            (sys.executable, find_boxes_path),
-            capture_output=True,
-            input=json.dumps(
+        subprocess_args = {
+            "args": (sys.executable, find_boxes_path),
+            "capture_output": True,
+            "input": json.dumps(
                 {
                     "threshold": threshold,
                     "box_size_lower": box_size_lower,
@@ -1036,8 +1036,14 @@ class FlexMouseGrid:
                 },
                 separators=(",", ":"),
             ),
-            text=True,
-        )
+            "text": True,
+        }
+
+        # Add creationflags on Windows to prevent the console window from appearing
+        if os.name == "nt":
+            subprocess_args["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+        process = subprocess.run(**subprocess_args)
 
         # print(process.stdout)
         # print(process.stderr)
