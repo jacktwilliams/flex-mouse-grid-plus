@@ -12,6 +12,7 @@ from talon import (
     Module,
     registry,
     ui,
+    settings,
     screen,
 )
 from talon.skia import Paint, Rect, Image
@@ -41,77 +42,77 @@ mod.tag(
     desc="Tag indicates whether the flex mouse grid is showing",
 )
 
-setting_letters_background_color = mod.setting(
+mod.setting(
     "flex_mouse_grid_letters_background_color",
     type=str,
     default="000000",
     desc="set the background color of the small letters in the flex mouse grid",
 )
 
-setting_row_highlighter = mod.setting(
+mod.setting(
     "flex_mouse_grid_row_highlighter",
     type=str,
     default="ff0000",
     desc="set the color of the row to highlight",
 )
 
-setting_large_number_color = mod.setting(
+mod.setting(
     "flex_mouse_grid_large_number_color",
     type=str,
     default="00ffff",
     desc="sets the color of the large number label in the superblock",
 )
 
-setting_small_letters_color = mod.setting(
+mod.setting(
     "flex_mouse_grid_small_letters_color",
     type=str,
     default="ffff55",
     desc="sets the color of the small letters label in the superblock",
 )
 
-setting_superblock_background_color = mod.setting(
+mod.setting(
     "flex_mouse_grid_superblock_background_color",
     type=str,
     default="ff55ff",
     desc="sets the background color of the superblock",
 )
 
-setting_superblock_stroke_color = mod.setting(
+mod.setting(
     "flex_mouse_grid_superblock_stroke_color",
     type=str,
     default="ffffff",
     desc="sets the background color of the superblock",
 )
 
-setting_field_size = mod.setting(
+mod.setting(
     "flex_mouse_grid_field_size",
     type=str,
     default="32",
     desc="sets the default size of the small grid blocks",
 )
 
-setting_superblock_transparency = mod.setting(
+mod.setting(
     "flex_mouse_grid_superblock_transparency",
     type=str,
     default="0x22",
     desc="sets the transparency of the superblocks",
 )
 
-setting_label_transparency = mod.setting(
+mod.setting(
     "flex_mouse_grid_label_transparency",
     type=str,
     default="0x99",
     desc="sets the transparency of the labels",
 )
 
-setting_startup_mode = mod.setting(
+mod.setting(
     "flex_mouse_grid_startup_mode",
     type=str,
     default="phonetic",
     desc="determines which mode the grid will be in each time the grid is reopened.",
 )
 
-setting_flex_grid_font = mod.setting(
+mod.setting(
     "flex_mouse_grid_font",
     type=str,
     default="arial rounded mt",
@@ -137,10 +138,14 @@ class FlexMouseGrid:
         self.morph = []
 
         # configured via settings
-        self.field_size = int(setting_field_size.get())
-        self.label_transparency = int(setting_label_transparency.get(), 16)
-        self.bg_transparency = int(setting_superblock_transparency.get(), 16)
-        self.pattern = setting_startup_mode.get()
+        self.field_size = int(settings.get("user.flex_mouse_grid_field_size"))
+        self.label_transparency = int(
+            settings.get("user.flex_mouse_grid_label_transparency"), 16
+        )
+        self.bg_transparency = int(
+            settings.get("user.flex_mouse_grid_superblock_transparency"), 16
+        )
+        self.pattern = settings.get("user.flex_mouse_grid_startup_mode")
 
         # visibility flags
         self.grid_showing = False
@@ -210,10 +215,14 @@ class FlexMouseGrid:
         self.grid_config_store = FlexStore(
             "grid_config",
             lambda: {
-                "field_size": int(setting_field_size.get()),
-                "label_transparency": int(setting_label_transparency.get(), 16),
-                "bg_transparency": int(setting_superblock_transparency.get(), 16),
-                "pattern": setting_startup_mode.get(),
+                "field_size": int(settings.get("user.flex_mouse_grid_field_size")),
+                "label_transparency": int(
+                    settings.get("user.flex_mouse_grid_label_transparency"), 16
+                ),
+                "bg_transparency": int(
+                    settings.get("user.flex_mouse_grid_superblock_transparency"), 16
+                ),
+                "pattern": settings.get("user.flex_mouse_grid_startup_mode"),
             },
         )
         self.load_grid_config_from_store()
@@ -346,10 +355,9 @@ class FlexMouseGrid:
 
                         # canvas.paint.color = colors[(row + col) % len(colors)] + hx(self.bg_transparency)
 
-                        canvas.paint.color = (
-                            setting_superblock_background_color.get()
-                            + hx(self.bg_transparency)
-                        )
+                        canvas.paint.color = settings.get(
+                            "user.flex_mouse_grid_superblock_background_color"
+                        ) + hx(self.bg_transparency)
                         canvas.paint.style = Paint.Style.FILL
                         blockrect = Rect(
                             col * superblock_size,
@@ -361,9 +369,9 @@ class FlexMouseGrid:
                         blockrect.bot = min(blockrect.bot, self.rect.height)
                         canvas.draw_rect(blockrect)
 
-                        canvas.paint.color = setting_superblock_stroke_color.get() + hx(
-                            self.bg_transparency
-                        )
+                        canvas.paint.color = settings.get(
+                            "user.flex_mouse_grid_superblock_stroke_color"
+                        ) + hx(self.bg_transparency)
                         canvas.paint.style = Paint.Style.STROKE
                         canvas.paint.stroke_width = 5
                         blockrect = Rect(
@@ -384,9 +392,9 @@ class FlexMouseGrid:
                         # text_rect.center = blockrect.center
                         text_rect.x = blockrect.x
                         text_rect.y = blockrect.y
-                        canvas.paint.color = setting_large_number_color.get() + hx(
-                            self.bg_transparency
-                        )
+                        canvas.paint.color = settings.get(
+                            "user.flex_mouse_grid_large_number_color"
+                        ) + hx(self.bg_transparency)
                         canvas.draw_text(
                             str(num), text_rect.x, text_rect.y + text_rect.height
                         )
@@ -398,7 +406,7 @@ class FlexMouseGrid:
         def draw_text():
             canvas.paint.text_align = canvas.paint.TextAlign.CENTER
             canvas.paint.textsize = 17
-            canvas.paint.typeface = setting_flex_grid_font.get()
+            canvas.paint.typeface = settings.get("user.flex_mouse_grid_font")
 
             skip_it = False
 
@@ -529,14 +537,14 @@ class FlexMouseGrid:
                 or len(self.input_so_far) > 1
                 and self.input_so_far.endswith(self.letters[col % len(self.letters)])
             ):
-                canvas.paint.color = setting_letters_background_color.get() + hx(
-                    self.label_transparency
-                )
+                canvas.paint.color = settings.get(
+                    "user.flex_mouse_grid_letters_background_color"
+                ) + hx(self.label_transparency)
                 canvas.paint.style = Paint.Style.FILL
                 canvas.draw_rect(background_rect)
-                canvas.paint.color = setting_small_letters_color.get() + hx(
-                    self.label_transparency
-                )
+                canvas.paint.color = settings.get(
+                    "user.flex_mouse_grid_small_letters_color"
+                ) + hx(self.label_transparency)
                 # paint.style = Paint.Style.STROKE
                 canvas.draw_text(
                     text_string,
@@ -557,9 +565,9 @@ class FlexMouseGrid:
                 letter_list = list(phonetic_word)
                 for index, letter in enumerate(letter_list):
                     if index == 0:
-                        canvas.paint.color = setting_row_highlighter.get() + hx(
-                            self.label_transparency
-                        )
+                        canvas.paint.color = settings.get(
+                            "user.flex_mouse_grid_row_highlighter"
+                        ) + hx(self.label_transparency)
                         # check if someone has said a letter and highlight a row, or check if two
                         # letters have been said and highlight a column
 
@@ -581,9 +589,9 @@ class FlexMouseGrid:
                         )  # I think this re-centers the point?
                         background_rect = background_rect.inset(-4)
                         canvas.draw_rect(background_rect)
-                        canvas.paint.color = setting_small_letters_color.get() + hx(
-                            self.label_transparency
-                        )
+                        canvas.paint.color = settings.get(
+                            "user.flex_mouse_grid_small_letters_color"
+                        ) + hx(self.label_transparency)
                         # paint.style = Paint.Style.STROKE
                         canvas.draw_text(
                             text_string,
@@ -594,10 +602,9 @@ class FlexMouseGrid:
                         )
 
                     elif self.pattern == "phonetic":
-                        canvas.paint.color = (
-                            setting_letters_background_color.get()
-                            + hx(self.label_transparency)
-                        )
+                        canvas.paint.color = settings.get(
+                            "user.flex_mouse_grid_letters_background_color"
+                        ) + hx(self.label_transparency)
                         # gets a letter from the alphabet of the form 'ab' or 'DA'
                         text_string = f"{letter}"
                         # this the measure text is the box around the text.
@@ -616,9 +623,9 @@ class FlexMouseGrid:
                         )  # I think this re-centers the point?
                         background_rect = background_rect.inset(-4)
                         canvas.draw_rect(background_rect)
-                        canvas.paint.color = setting_small_letters_color.get() + hx(
-                            self.label_transparency
-                        )
+                        canvas.paint.color = settings.get(
+                            "user.flex_mouse_grid_small_letters_color"
+                        ) + hx(self.label_transparency)
                         # paint.style = Paint.Style.STROKE
                         canvas.draw_text(
                             text_string,
@@ -674,7 +681,9 @@ class FlexMouseGrid:
                         point_label = label
                     text_rect = canvas.paint.measure_text(point_label)[1]
                     text_rect = text_rect.inset(-2)
-                    canvas.paint.color = setting_small_letters_color.get()
+                    canvas.paint.color = settings.get(
+                        "user.flex_mouse_grid_small_letters_color"
+                    )
                     canvas.draw_text(
                         point_label, point.x + 3, point.y + text_rect.height * 3 // 4
                     )
@@ -683,9 +692,9 @@ class FlexMouseGrid:
                     background_rect = text_rect.copy()
                     background_rect.x = point.x
                     background_rect.y = point.y
-                    canvas.paint.color = setting_letters_background_color.get() + hx(
-                        self.label_transparency
-                    )
+                    canvas.paint.color = settings.get(
+                        "user.flex_mouse_grid_letters_background_color"
+                    ) + hx(self.label_transparency)
                     canvas.paint.style = Paint.Style.FILL
                     canvas.draw_rect(background_rect)
 
@@ -707,7 +716,9 @@ class FlexMouseGrid:
                 canvas.paint.style = Paint.Style.FILL
                 canvas.draw_rect(background_rect)
 
-                canvas.paint.color = setting_small_letters_color.get()
+                canvas.paint.color = settings.get(
+                    "user.flex_mouse_grid_small_letters_color"
+                )
                 canvas.draw_text(
                     point_label,
                     box.x + 1,
