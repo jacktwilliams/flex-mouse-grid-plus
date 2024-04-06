@@ -137,6 +137,16 @@ class FlexMouseGrid:
         self.letters = string.ascii_lowercase
         self.morph = []
 
+        # visibility flags
+        self.grid_showing = False
+        self.rulers_showing = False
+        self.points_showing = False
+        self.boxes_showing = False
+        self.boxes_threshold_view_showing = False
+        self.info_showing = False
+
+    def setup(self, *, rect: Rect = None, screen_index: int = -1):
+
         # configured via settings
         self.field_size = int(settings.get("user.flex_mouse_grid_field_size"))
         self.label_transparency = int(
@@ -147,15 +157,6 @@ class FlexMouseGrid:
         )
         self.pattern = settings.get("user.flex_mouse_grid_startup_mode")
 
-        # visibility flags
-        self.grid_showing = False
-        self.rulers_showing = False
-        self.points_showing = False
-        self.boxes_showing = False
-        self.boxes_threshold_view_showing = False
-        self.info_showing = False
-
-    def setup(self, *, rect: Rect = None, screen_index: int = -1):
         # get informaition on number and size of screens
         screens = ui.screens()
 
