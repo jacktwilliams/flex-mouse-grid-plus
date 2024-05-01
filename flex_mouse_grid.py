@@ -123,6 +123,16 @@ mod.setting(
 ctx = Context()
 
 
+def interpolate_points(p1, p2, num_points):
+    return [
+        Point2d(
+            p1.x + (p2.x - p1.x) * i / (num_points - 1),
+            p1.y + (p2.y - p1.y) * i / (num_points - 1),
+        )
+        for i in range(num_points)
+    ]
+
+
 class FlexMouseGrid:
     def __init__(self):
         self.screen = None
@@ -204,6 +214,7 @@ class FlexMouseGrid:
         self.box_config_store = FlexStore(
             "box_config",
             lambda: {
+                "locked": False,
                 "threshold": 25,
                 "box_size_lower": 31,
                 "box_size_upper": 400,
@@ -741,6 +752,7 @@ class FlexMouseGrid:
 
         def draw_info():
             # retrieve the app-specific box detection configuration
+            locked = self.box_config["locked"] if "locked" in self.box_config else False
             threshold = self.box_config["threshold"]
             box_size_lower = self.box_config["box_size_lower"]
             box_size_upper = self.box_config["box_size_upper"]
@@ -753,6 +765,7 @@ class FlexMouseGrid:
                 + f"  bg transparency:        {self.bg_transparency}\n"
                 + "\n"
                 + "BOX CONFIG=====================\n"
+                + f"  locked:                 {locked}\n"
                 + f"  box size lower bound:   {box_size_lower}\n"
                 + f"  box size upper bound:   {box_size_upper}\n"
                 + f"  threshold:              {threshold}\n"
@@ -852,6 +865,11 @@ class FlexMouseGrid:
     def save_box_config(self):
         self.box_config_store.save(self.box_config)
 
+    def lock_box_config(self, locked: bool):
+        self.box_config["locked"] = locked
+        self.box_config_store.save(self.box_config)
+        self.redraw()
+
     def reset_window_context(self):
         # reload the stores for the current active window
         self.points_map = self.points_map_store.load()
@@ -933,6 +951,53 @@ class FlexMouseGrid:
 
         self.map_new_points_by_box(point_name, box_number_list)
 
+    def map_new_points_by_location_range(
+        self, point_name, number_of_points, starting_box_number, ending_box_number
+    ):
+        self.reset_window_context()
+
+        if number_of_points < 2:
+            print("invalid number of points:", number_of_points)
+            return
+
+        starting_box = self.boxes[starting_box_number]
+        ending_box = self.boxes[ending_box_number]
+
+        print("box coordinates:")
+        print(
+            starting_box.center.x,
+            starting_box.center.y,
+            ending_box.center.x,
+            ending_box.center.y,
+        )
+
+        self.points_map[point_name] = interpolate_points(
+            starting_box.center, ending_box.center, number_of_points
+        )
+
+        self.save_points()
+
+        self.points_showing = True
+        self.redraw()
+
+    def map_new_points_by_raw_location_range(
+        self, point_name, number_of_points, starting_point, ending_point
+    ):
+        self.reset_window_context()
+
+        if number_of_points < 2:
+            print("invalid number of points:", number_of_points)
+            return
+
+        self.points_map[point_name] = interpolate_points(
+            starting_point, ending_point, number_of_points
+        )
+
+        self.save_points()
+
+        self.points_showing = True
+        self.redraw()
+
     def unmap_point(self, point_name):
         self.reset_window_context()
 
@@ -1001,14 +1066,15 @@ class FlexMouseGrid:
         self.boxes_showing = b
         self.grid_showing = g
 
-    def find_boxes(self, scan=False):
+    def find_boxes(self):
         self.reset_window_context()
 
         # temporarily hide everything that we have drawn so that it doesn't interfere with box detection
         self.temporarily_hide_everything()
 
         # use a threshold of -1 to indicate that we should scan for a good threshold
-        threshold = -1 if scan else self.box_config["threshold"]
+        locked = self.box_config["locked"] if "locked" in self.box_config else False
+        threshold = self.box_config["threshold"] if locked else -1
 
         # retrieve the app-specific box detection configuration
         box_size_lower = self.box_config["box_size_lower"]
@@ -1062,7 +1128,10 @@ class FlexMouseGrid:
 
         process_output = json.loads(process.stdout)
         boxes = process_output["boxes"]
-        self.boxes = [Rect(box["x"], box["y"], box["w"], box["h"]) for box in boxes]
+        self.boxes = [
+            Rect(box["x"], box["y"], box["w"], box["h"]) for box in boxes[::-1]
+        ]
+        # print("found boxes", len(self.boxes))
         self.box_config["threshold"] = process_output["threshold"]
 
     def go_to_box(self, box_number):
@@ -1073,8 +1142,8 @@ class FlexMouseGrid:
         box = self.boxes[box_number]
         ctrl.mouse_move(self.rect.x + box.center.x, self.rect.y + box.center.y)
 
-        self.boxes_showing = False
-        self.redraw()
+        # self.boxes_showing = False
+        # self.redraw()
 
     def get_label_position(self, spoken_letters, number=-1, relative=False):
         base_rect = self.superblocks[number].copy()
@@ -1249,6 +1318,35 @@ class GridActions:
         """Map a new point or points by box number range"""
         mg.map_new_points_by_box_range(point_name, box_number_list)
 
+    def flex_grid_map_points_by_location_range(
+        point_name: str,
+        number_of_points: int,
+        starting_box_number: int,
+        ending_box_number: int,
+    ):
+        """Map points by giving a starting and ending box and number of points to interpolate"""
+
+        mg.map_new_points_by_location_range(
+            point_name, number_of_points, starting_box_number, ending_box_number
+        )
+
+    def flex_grid_map_points_by_raw_location_range(
+        point_name: str,
+        number_of_points: int,
+        starting_x: int,
+        starting_y: int,
+        ending_x: int,
+        ending_y: int,
+    ):
+        """Map points by giving a starting and ending point and number of points to interpolate"""
+
+        mg.map_new_points_by_raw_location_range(
+            point_name,
+            number_of_points,
+            Point2d(starting_x, starting_y),
+            Point2d(ending_x, ending_y),
+        )
+
     def flex_grid_unmap_point(point_name: str):
         """Unmap a point or all points"""
         mg.unmap_point(point_name)
@@ -1275,9 +1373,9 @@ class GridActions:
         """Find all boxes, label with hints"""
         mg.find_boxes()
 
-    def flex_grid_setup_boxes():
-        """Do a binary search to find best box configuration"""
-        mg.find_boxes(scan=True)
+    def flex_grid_box_config_lock(onoff: int):
+        """Lock box config to prevent binary search"""
+        mg.lock_box_config(True if onoff == 1 else False)
 
     def flex_grid_go_to_box(box_number: int, mouse_button: int):
         """Go to a box"""
@@ -1287,6 +1385,10 @@ class GridActions:
     def flex_grid_box_config_change(parameter: str, delta: int):
         """Change box configuration parameter by delta"""
         mg.box_config[parameter] += delta
+
+        if parameter == "threshold":
+            mg.box_config["locked"] = True
+
         mg.save_box_config()
         mg.find_boxes()
 
