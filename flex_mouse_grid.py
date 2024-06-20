@@ -133,6 +133,19 @@ def interpolate_points(p1, p2, num_points):
     ]
 
 
+def transform_image_space_to_window_space(image_width, image_height, window_rect, rect):
+    # transform the given rect from image (pixel) coordinates to window coordinates
+    # in this case, the image is a screenshot of the window
+    horizontal_scale = window_rect.width / image_width
+    vertical_scale = window_rect.height / image_height
+    return Rect(
+        round(rect.x * horizontal_scale),
+        rect.y * vertical_scale,
+        round(rect.width * horizontal_scale),
+        rect.height * vertical_scale,
+    )
+
+
 class FlexMouseGrid:
     def __init__(self):
         self.screen = None
@@ -1098,6 +1111,8 @@ class FlexMouseGrid:
         image_array = np.array(screen.capture_rect(self.rect), dtype=np.uint8)
         image_no_alpha = image_array[:, :, :3]
         img = base64.b64encode(image_no_alpha.tobytes()).decode("utf-8")
+        image_width = image_array.shape[1]
+        image_height = image_array.shape[0]
 
         # run openCV script to find boxes in a separate process
         subprocess_args = {
@@ -1109,8 +1124,8 @@ class FlexMouseGrid:
                     "box_size_lower": box_size_lower,
                     "box_size_upper": box_size_upper,
                     "img": img,
-                    "width": image_array.shape[1],
-                    "height": image_array.shape[0],
+                    "width": image_width,
+                    "height": image_height,
                 },
                 separators=(",", ":"),
             ),
@@ -1123,13 +1138,21 @@ class FlexMouseGrid:
 
         process = subprocess.run(**subprocess_args)
 
-        # print(process.stdout)
-        # print(process.stderr)
+        print(process.stdout)
+        print(process.stderr)
 
         process_output = json.loads(process.stdout)
         boxes = process_output["boxes"]
+        window_rect = ui.active_window().rect
+        # TODO: needs refactoring
         self.boxes = [
-            Rect(box["x"], box["y"], box["w"], box["h"]) for box in boxes[::-1]
+            transform_image_space_to_window_space(
+                image_width,
+                image_height,
+                window_rect,
+                Rect(box["x"], box["y"], box["w"], box["h"]),
+            )
+            for box in boxes[::-1]
         ]
         # print("found boxes", len(self.boxes))
         self.box_config["threshold"] = process_output["threshold"]
