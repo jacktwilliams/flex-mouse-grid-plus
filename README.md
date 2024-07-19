@@ -29,22 +29,25 @@ notable differences from Dense Mouse Grid:
    along with the community repository, but is compatible with any repository
    that provides the letters a-z using the `<user.letters>` capture and numbers
    using the `<numbers>` capture.
-3. Install the python dependencies. Assuming the default install location on a
-   Mac, run these commands:
+3. Install the python dependencies with the below instructions.
+
+- On Mac, run these commands in a terminal:
 
 ```
 ~/.talon/bin/pip install opencv-python-headless
 ~/.talon/bin/pip install numpy
 ```
-On Windows, in a Powershell run the following commands:
+
+- On Windows, run the following commands in a Powershell. Note: on Windows the
+  bin folder is a shortcut file that cannot be simply navigated to.
+
 ```
 cd (New-Object -ComObject WScript.Shell).CreateShortcut("$env:USERPROFILE/AppData/Roaming/talon/bin.lnk").TargetPath
 ./pip.bat install opencv-python-headless
 ./pip.bat install numpy
 ```
-(on Windows the bin folder is a shortcut file that cannot be as simply navigated to)
 
-4. Clone this repository into your Talon user directory (on MacOS,
+4. Clone this repository into your Talon user directory (on MacOS, located at
    `~/.talon/user`).
 5. Restart Talon, can't hurt.
 6. Try the voice command `flex grid`!
