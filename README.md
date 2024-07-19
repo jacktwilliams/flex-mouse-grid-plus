@@ -36,6 +36,13 @@ notable differences from Dense Mouse Grid:
 ~/.talon/bin/pip install opencv-python-headless
 ~/.talon/bin/pip install numpy
 ```
+On Windows, in a Powershell run the following commands:
+```
+cd (New-Object -ComObject WScript.Shell).CreateShortcut("$env:USERPROFILE/AppData/Roaming/talon/bin.lnk").TargetPath
+./pip.bat install opencv-python-headless
+./pip.bat install numpy
+```
+(on Windows the bin folder is a shortcut file that cannot be as simply navigated to)
 
 4. Clone this repository into your Talon user directory (on MacOS,
    `~/.talon/user`).
