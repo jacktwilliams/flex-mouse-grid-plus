@@ -31,7 +31,7 @@ notable differences from Dense Mouse Grid:
    using the `<numbers>` capture.
 3. Install the python dependencies with the below instructions.
 
-- On Mac, run these commands in a terminal:
+- On Mac or Linux, run these commands in a terminal:
 
 ```
 ~/.talon/bin/pip install opencv-python-headless
