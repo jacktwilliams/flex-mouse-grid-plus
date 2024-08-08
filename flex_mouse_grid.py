@@ -203,10 +203,6 @@ class FlexMouseGrid:
         self.rect = rect.copy()
         self.screen = screen
 
-        # use the field size to calculate how many rows and how many columns there are
-        self.columns = int(self.rect.width // self.field_size)
-        self.rows = int(self.rect.height // self.field_size)
-
         self.history = []
         self.superblocks = []
         self.selected_superblock = 0
@@ -251,6 +247,10 @@ class FlexMouseGrid:
             },
         )
         self.load_grid_config_from_store()
+
+        # use the field size to calculate how many rows and how many columns there are
+        self.columns = int(self.rect.width // self.field_size)
+        self.rows = int(self.rect.height // self.field_size)
 
         if self.mcanvas is not None:
             self.mcanvas.close()
