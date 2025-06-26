@@ -9,24 +9,29 @@ flex grid screen <number>: user.flex_grid_select_screen(number)
 # Points
 ^points$: user.flex_grid_points_toggle(1)
 ^points close$: user.flex_grid_points_toggle(0)
-^point <user.word> [<number>]$: user.flex_grid_go_to_point(word, number or 1, -1)
-^point <user.word> next$: user.flex_grid_go_to_point_relative(word, 1)
-^point <user.word> last$: user.flex_grid_go_to_point_relative(word, -1)
-^point click <user.word> [<number>]$: user.flex_grid_go_to_point(word, number or 1, 0)
-^point righty <user.word> [<number>]$: user.flex_grid_go_to_point(word, number or 1, 1)
+^points load <user.text>$: user.flex_grid_points_load(text)
+^points load default$: user.flex_grid_points_load_default()
+^points list help$: user.flex_grid_points_list_help()
+^point <user.text> [<number>]$: user.flex_grid_go_to_point(text, number or 1, -1)
+^point <user.text> next$: user.flex_grid_go_to_point_relative(text, 1)
+^point <user.text> last$: user.flex_grid_go_to_point_relative(text, -1)
+^point click <user.text> [<number>]$: user.flex_grid_go_to_point(text, number or 1, 0)
+^point righty <user.text> [<number>]$: user.flex_grid_go_to_point(text, number or 1, 1)
 
 # Points mapping
 remap:
     user.flex_grid_place_window()
     user.flex_grid_points_toggle(1)
-map <user.word>: user.flex_grid_map_point_here(word)
-map <user.word> <user.letter>+: user.flex_grid_map_points_by_letter(word, letter_list)
-map <user.word> box <number> [mark <number>]*: user.flex_grid_map_points_by_box(word, number_list)
-map <user.word> box <number> past <number>: user.flex_grid_map_points_by_box_range(word, number_list)
-map <number> points <user.word> box <number> past <number>:
-    user.flex_grid_map_points_by_location_range(word, number_1, number_2, number_3)
-unmap <user.word>: user.flex_grid_unmap_point(word)
+map <user.text>: user.flex_grid_map_point_here(text)
+map <user.text> <user.letter>+: user.flex_grid_map_points_by_letter(text, letter_list)
+map <user.text> box <number> [mark <number>]*: user.flex_grid_map_points_by_box(text, number_list)
+map <user.text> box <number> past <number>: user.flex_grid_map_points_by_box_range(text, number_list)
+map <number> points <user.text> box <number> past <number>:
+    user.flex_grid_map_points_by_location_range(text, number_1, number_2, number_3)
+unmap <user.text>: user.flex_grid_unmap_point(text)
 unmap everything: user.flex_grid_unmap_point("")
+unmap word <user.text>: user.flex_grid_unmap_word(text)
+unmap letters <user.letter>+ done: user.flex_grid_unmap_letters(letter_list)
 
 # Boxes
 boxes: user.flex_grid_find_boxes()

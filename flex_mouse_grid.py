@@ -5,6 +5,7 @@ from .flex_store import FlexStore
 from .ui_widgets import layout_text
 from .ui_widgets import render_text
 from talon import (
+    actions,
     app,
     canvas,
     Context,
@@ -17,6 +18,7 @@ from talon import (
 )
 from talon.skia import Paint, Rect, Image
 from talon.types.point import Point2d
+from . import point_files
 
 import typing
 import string
@@ -29,7 +31,17 @@ import sys
 import os
 import json
 import base64
+import re
 
+# Helper to normalize spoken phrases into point file names / point keys
+_name_pattern = re.compile(r"[^a-z0-9]")
+
+def _normalize_name(name: str) -> str:
+    """Normalize a spoken phrase to a lowercase, alphanumeric string with no spaces/punctuation."""
+    if not isinstance(name, str):
+        name = str(name)
+    # Lowercase and strip accents/punctuation/spaces by replacing non-alphanumerics
+    return _name_pattern.sub("", name.lower())
 
 def hx(v: int) -> str:
     return "{:02x}".format(v)
@@ -167,6 +179,14 @@ class FlexMouseGrid:
         self.boxes_showing = False
         self.boxes_threshold_view_showing = False
         self.info_showing = False
+        
+        # Centralized source-of-truth for current app and points file
+        self._current_app = None
+        self._points_file = None
+        self._file_by_app = {}
+        
+        # Persistent storage for app-to-file mapping
+        self._points_meta_store = FlexStore("points_meta", lambda: {})
 
     def setup(self, *, rect: Rect = None, screen_index: int = -1):
 
@@ -213,7 +233,7 @@ class FlexMouseGrid:
         self.rulers_showing = False
         self.points_showing = False
         self.boxes_showing = False
-
+    
         # points
         self.points_map_store = FlexStore("points", lambda: {})
         self.points_map = self.points_map_store.load()
@@ -257,6 +277,27 @@ class FlexMouseGrid:
         self.mcanvas = canvas.Canvas.from_screen(screen)
         self.mcanvas.register("draw", self.draw)
         self.mcanvas.freeze()
+
+        # Load persistent app-to-file mapping and set up current app
+        self._file_by_app = self._points_meta_store.load()
+        self._on_app_activate()
+
+    def _on_app_activate(self):
+        """Handle app activation by updating current app and auto-loading points."""
+        self._current_app = actions.app.name() if actions.app else "unknown"
+        self._auto_load_points_for_current_app()
+
+    def _points_map_changed(self):
+        """Central handler for all points map changes - saves to both stores and file."""
+        # Save to FlexStore (per-app storage)
+        self.points_map_store.save(self.points_map)
+        
+        # Save to JSON file
+        if self._points_file:
+            point_files.save_points_for(self._points_file, self.points_map)
+        
+        # Always redraw to update UI
+        self.redraw()
 
     def add_partial_input(self, letter: str):
         # this logic changes which superblock is selected
@@ -872,10 +913,8 @@ class FlexMouseGrid:
             }
         )
 
-    def save_points(self):
-        self.points_map_store.save(self.points_map)
-
     def save_box_config(self):
+        """Persist current box configuration to store."""
         self.box_config_store.save(self.box_config)
 
     def lock_box_config(self, locked: bool):
@@ -900,10 +939,8 @@ class FlexMouseGrid:
         # points are always relative to canvas
         self.points_map[point_name] = [Point2d(x - self.rect.x, y - self.rect.y)]
 
-        self.save_points()
-
         self.points_showing = True
-        self.redraw()
+        self._points_map_changed()
 
     def map_new_points_by_letter(self, point_name, spoken_letters):
         self.reset_window_context()
@@ -923,10 +960,8 @@ class FlexMouseGrid:
                 )
             )
 
-        self.save_points()
-
         self.points_showing = True
-        self.redraw()
+        self._points_map_changed()
 
     def map_new_points_by_box(self, point_name, box_number_list):
         self.reset_window_context()
@@ -941,11 +976,10 @@ class FlexMouseGrid:
             points.append(Point2d(box_center.x, box_center.y))
 
         self.points_map[point_name] = points
-        self.save_points()
 
         self.points_showing = True
         self.boxes_showing = False
-        self.redraw()
+        self._points_map_changed()
 
     def map_new_points_by_box_range(self, point_name, box_number_range):
         self.reset_window_context()
@@ -988,10 +1022,8 @@ class FlexMouseGrid:
             starting_box.center, ending_box.center, number_of_points
         )
 
-        self.save_points()
-
         self.points_showing = True
-        self.redraw()
+        self._points_map_changed()
 
     def map_new_points_by_raw_location_range(
         self, point_name, number_of_points, starting_point, ending_point
@@ -1006,18 +1038,15 @@ class FlexMouseGrid:
             starting_point, ending_point, number_of_points
         )
 
-        self.save_points()
-
         self.points_showing = True
-        self.redraw()
+        self._points_map_changed()
 
     def unmap_point(self, point_name):
         self.reset_window_context()
 
         if point_name == "":
             self.points_map = {}
-            self.save_points()
-            self.redraw()
+            self._points_map_changed()
             return
 
         if point_name not in self.points_map:
@@ -1025,8 +1054,82 @@ class FlexMouseGrid:
             return
 
         del self.points_map[point_name]
-        self.save_points()
-        self.redraw()
+        self._points_map_changed()
+
+    def unmap_points_containing_word(self, word):
+        """Unmap all points that contain the given word in their name"""
+        self.reset_window_context()
+        
+        normalized_word = _normalize_name(word)
+        points_to_remove = []
+        
+        # Find all points that contain the word
+        for point_name in self.points_map:
+            if normalized_word in point_name:
+                points_to_remove.append(point_name)
+        
+        if not points_to_remove:
+            print(f"No points found containing word: '{word}'")
+            return
+        
+        # Remove the found points
+        for point_name in points_to_remove:
+            del self.points_map[point_name]
+            
+        print(f"Unmapped {len(points_to_remove)} points containing '{word}': {points_to_remove}")
+        self._points_map_changed()
+
+    def unmap_points_by_letters(self, letter_list):
+        """Unmap points that match the word spelled by the given letters"""
+        self.reset_window_context()
+        
+        # Combine the letters to form the spelled word
+        spelled_word = ''.join(letter_list).lower()
+        normalized_word = _normalize_name(spelled_word)
+        
+        if normalized_word not in self.points_map:
+            print(f"No point found with name: '{spelled_word}'")
+            return
+        
+        # Remove the point
+        del self.points_map[normalized_word]
+        print(f"Unmapped point: '{spelled_word}'")
+        self._points_map_changed()
+
+    def load_points_from_file(self, file_name: str):
+        """Load points from a JSON file for the specified file name."""
+        self.reset_window_context()
+        
+        loaded_points = point_files.load_points_for(file_name)
+        
+        # Update our state tracking
+        self._points_file = file_name
+        self._file_by_app[self._current_app] = file_name
+        
+        # Persist the app-to-file mapping
+        self._points_meta_store.save(self._file_by_app)
+        
+        if loaded_points:
+            self.points_map = loaded_points
+            self.points_showing = True
+            self._points_map_changed()
+            print(f"Loaded {len(loaded_points)} point groups from {file_name}")
+        else:
+            # Even if file is empty/missing, we still remember it for future saves
+            self.points_map = {}
+            self.points_showing = False
+            self._points_map_changed()
+            print(f"No points file found for {file_name}, starting with empty points")
+
+    def _auto_load_points_for_current_app(self):
+        """Auto-load points file for the current application."""
+        if not self._current_app:
+            return
+            
+        file_name = self._file_by_app.get(self._current_app, _normalize_name(self._current_app))
+        
+        # Load the appropriate file for this app
+        self.load_points_from_file(file_name)
 
     def go_to_point(self, point_name, index, relative=False):
         self.reset_window_context()
@@ -1228,6 +1331,11 @@ class FlexMouseGrid:
 
 mg = FlexMouseGrid()
 app.register("ready", mg.setup)
+app.register("app_activate", lambda _: mg._on_app_activate())
+
+# Create a temporary list for points help
+mod.list("flex_points_temp", desc="Temporary list for displaying points help")
+ctx = Context()
 
 
 @mod.action_class
@@ -1325,21 +1433,25 @@ class GridActions:
 
     def flex_grid_map_point_here(point_name: str):
         """Map a new point where the mouse cursor currently is"""
-        mg.map_new_point_here(point_name)
+        # Check if the text has more than one space (more than two words)
+        if point_name.count(' ') > 1:
+            print(f"Ignoring map command: '{point_name}' contains more than two words")
+            return
+        mg.map_new_point_here(_normalize_name(point_name))
 
     def flex_grid_map_points_by_letter(point_name: str, letter_list: typing.List[str]):
         """Map a new point or points by letter coordinates"""
-        mg.map_new_points_by_letter(point_name, letter_list)
+        mg.map_new_points_by_letter(_normalize_name(point_name), letter_list)
 
     def flex_grid_map_points_by_box(point_name: str, box_number_list: typing.List[int]):
         """Map a new point or points by box number(s)"""
-        mg.map_new_points_by_box(point_name, box_number_list)
+        mg.map_new_points_by_box(_normalize_name(point_name), box_number_list)
 
     def flex_grid_map_points_by_box_range(
         point_name: str, box_number_list: typing.List[int]
     ):
         """Map a new point or points by box number range"""
-        mg.map_new_points_by_box_range(point_name, box_number_list)
+        mg.map_new_points_by_box_range(_normalize_name(point_name), box_number_list)
 
     def flex_grid_map_points_by_location_range(
         point_name: str,
@@ -1350,7 +1462,10 @@ class GridActions:
         """Map points by giving a starting and ending box and number of points to interpolate"""
 
         mg.map_new_points_by_location_range(
-            point_name, number_of_points, starting_box_number, ending_box_number
+            _normalize_name(point_name),
+            number_of_points,
+            starting_box_number,
+            ending_box_number,
         )
 
     def flex_grid_map_points_by_raw_location_range(
@@ -1364,7 +1479,7 @@ class GridActions:
         """Map points by giving a starting and ending point and number of points to interpolate"""
 
         mg.map_new_points_by_raw_location_range(
-            point_name,
+            _normalize_name(point_name),
             number_of_points,
             Point2d(starting_x, starting_y),
             Point2d(ending_x, ending_y),
@@ -1372,16 +1487,49 @@ class GridActions:
 
     def flex_grid_unmap_point(point_name: str):
         """Unmap a point or all points"""
-        mg.unmap_point(point_name)
+        mg.unmap_point(_normalize_name(point_name))
+
+    def flex_grid_unmap_word(word: str):
+        """Unmap all points that contain the given word in their name"""
+        mg.unmap_points_containing_word(word)
+
+    def flex_grid_unmap_letters(letter_list: typing.List[str]):
+        """Unmap points that match the word spelled by the given letters"""
+        mg.unmap_points_by_letters(letter_list)
 
     def flex_grid_go_to_point(point_name: str, index: int, mouse_button: int):
         """Go to a point, optionally click it"""
-        mg.go_to_point(point_name, index)
+        mg.go_to_point(_normalize_name(point_name), index)
         mg.mouse_click(mouse_button)
 
     def flex_grid_go_to_point_relative(point_name: str, delta: int):
         """Go to a point relative to the last visited point in a list"""
-        mg.go_to_point(point_name, delta, relative=True)
+        mg.go_to_point(_normalize_name(point_name), delta, relative=True)
+
+    def flex_grid_points_load(app_name: str):
+        """Load points from a JSON file for the specified app name"""
+        mg.load_points_from_file(_normalize_name(app_name))
+
+    def flex_grid_points_load_default():
+        """Load points from a JSON file for the current app"""
+        mg.load_points_from_file(_normalize_name(actions.app.name()))
+
+    def flex_grid_points_list_help():
+        """Show help with current points file and point names"""
+        # Build the help data on-demand
+        help_data = {}
+        
+        # First entry shows the filename (value is displayed first, then colon, then key)
+        file_name = mg._points_file or mg._current_app or "none"
+        help_data[""] = f"file: {file_name}"
+        
+        # Add all point names
+        for point_name in sorted(mg.points_map.keys()):
+            help_data[point_name] = point_name
+        
+        # Temporarily populate the list and show help
+        ctx.lists["user.flex_points_temp"] = help_data
+        actions.user.help_list("user.flex_points_temp")
 
     # BOXES
     def flex_grid_boxes_toggle(onoff: int):
