@@ -1,4 +1,20 @@
-# Flex Mouse Grid
+# Flex Mouse Grid Plus
+
+## Additions in the 'plus' fork (not in flex-mouse-grid)
+
+This fork adds several enhancements to the original Flex Mouse Grid:
+
+• **Point file loading**: Load and save point collections from files with commands like `points load <filename>` and `points load default`
+
+• **Multi-word point names**: Point names and point file names can now contain multiple words instead of being limited to single words
+
+• **Per-app point file tracking**: The system now remembers which points file was last selected for each application
+
+• **Enhanced unmapping commands**: Added utility commands `unmap word <text>`, `unmap letters <letters> done`, and improved `unmap everything` for better point management
+
+• **Persistent point storage**: Points are now stored in `~/.talon/flex_points/` directory as JSON files
+
+# Original Flex Mouse Grid Readme
 
 A hands-free mouse grid by Ben Rollin, Tara Roys, timotimo, and aegis, for use
 with the [Talon voice framework](https://talonvoice.com/). Flex Mouse Grid is
